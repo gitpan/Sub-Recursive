@@ -40,3 +40,11 @@ recursive 1447/s        --       -0%       -0%
 manual    1449/s        0%        --       -0%
 leaker    1454/s        0%        0%        --
 
+
+This is perl, v5.8.0 built for MSWin32-x86-multi-thread
+(with 1 registered patch, see perl -V for more detail)
+
+Copyright 1987-2002, Larry Wall
+
+Binary build 806 provided by ActiveState Corp. http://www.ActiveState.com
+Built 00:45:44 Mar 31 2003
