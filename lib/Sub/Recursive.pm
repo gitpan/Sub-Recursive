@@ -1,67 +1,13 @@
 package Sub::Recursive;
 
-$VERSION = 0.01;
+$VERSION = 0.02;
+@EXPORT = qw/ recursive $REC /;
 
 use 5.006;
 use strict;
-use Carp;
 use base 'Exporter';
 
-# Don't export &_, *_ is forced to main:: anyway.
-our @EXPORT = qw/ recursive $REC /;
-our @EXPORT_OK = qw/ recursive_ /;
-
 our $REC = '$REC is a special variable used by ' . __PACKAGE__;
-
-our $rec = sub {
-    my $clr = (caller(1))[3];
-    if ($clr =~ /::__ANON__\z/) {
-        croak("Can't use &_ on unrecursive anonymous subroutine");
-    }
-    else {
-        goto &$clr;
-    }
-};
-
-{
-    my $underscore = sub { goto &$rec };
-
-    sub import {
-        my $class = shift;
-        my %args = map { $_ => 1 } @_;
-
-        if ($args{_} or $args{recursive_}) {
-            if (\&_ != $underscore) {
-                carp('&_ is already defined by someone else')
-                    if defined &_;
-                no warnings 'redefine';
-                *_ = $underscore;
-            }
-        }
-
-        return if delete $args{_} and not %args;
-
-        __PACKAGE__->export_to_level(1, $class, keys %args);
-    }
-}
-
-sub recursive_ (&) {
-    my ($code) = @_;
-    my $foo = sub {
-        my $clr = (caller(1))[3];
-        if ($clr =~ /::__ANON__\z/) {
-            $code->(@_);
-        }
-        else {
-            goto &$clr;
-        }
-    };
-    no warnings 'redefine';
-    return sub {
-        local $rec = $foo;
-        $code->(@_);
-    };
-}
 
 sub recursive (&) {
     my ($code) = @_;
@@ -85,7 +31,7 @@ Sub::Recursive - Anonymous memory leak free recursive subroutines
 
     use Sub::Recursive;
 
-    # Fast LEAK FREE recursive closure.
+    # Fast LEAK FREE recursive subroutine.
     my $fac = recursive {
         my ($n) = @_;
         return 1 if $n < 1;
@@ -95,37 +41,10 @@ Sub::Recursive - Anonymous memory leak free recursive subroutines
     # Recursive anonymous definition in one line, plus invocation.
     print recursive { $_[0] <= 1 ? 1 : $_[0] * $REC->($_[0] - 1) } -> (5);
 
-    ########################################
-
-    use Sub::Recursive '_';
-
-    # Slow named recursive function. Uses Perl 6's magical &_ subroutine.
-    sub fac {
-        my ($n) = @_;
-        return 1 if $n < 1;
-        return $n * _($n - 1);
-    }
-
-    ########################################
-
-    use Sub::Recursive 'recursive_';
-
-    # Exactly the same code between the braces as for &fac.
-    # Really slow.
-    # Note the trailing underscore on recursive_.
-    my $slow_and_bad = recursive_ {
-        my ($n) = @_;
-        return 1 if $n < 1;
-        return $n * _($n - 1);
-    };
-
 
 =head1 DESCRIPTION
 
 Recursive closures suffer from a severe memory leak. C<Sub::Recursive> makes the problem go away cleanly and at the same time allows you to write recursive subroutines as expression and can make them truly anonymous. There's no significant speed difference between using C<&recursive> and writing the simpler leaking solution.
-
-This module has been extended to also provide the Perl 6 C<&_> magical subroutine. It is an alias for the current subroutine. I don't recommend anyone to use C<&_> in Perl 5, but now you at least can taste it.
-
 
 =head2 The problem
 
@@ -146,7 +65,7 @@ because of the recursive use of C<$fac> which isn't available until after the st
         return $n * $fac->($n - 1);
     };
 
-Unfortunately, you introduce another problem.
+Unfortunately, this introduces another problem.
 
 Because of perl's reference count system, the code above is a memory leak. C<$fac> references the anonymous sub which references C<$fac>, thus creating a circular reference. This module does not suffer from that memory leak.
 
@@ -164,7 +83,7 @@ This module fixes all those issues. Just change C<sub> for C<recursive> and use 
         return $n * $REC->($n - 1);
     };
 
-Note that you don't even have to give it a name. You can e.g. pass it directly to a subroutine,
+It also makes it easy to pass it directly to a subroutine,
 
     foo(recursive { ... });
 
@@ -186,18 +105,6 @@ C<&recursive> takes one argument and that's an anonymous sub. It's prototyped wi
     recursive { ... }
 
 The return value is an anonymous closure that has C<&$REC> working in it.
-
-=head2 C<recursive_>
-
-C<&recursive_> is like C<&recursive> except that C<&_> is used instead of C<&$REC>. It also implies C<_> in the import list.
-
-Subroutines created with C<&recursive_> are very slow and the C<caller> traceback will contain doubly function calls for every call to the anonymous subroutine.
-
-=head2 C<_>
-
-C<&_> isn't exactly exported, it's just defined. The name "_" is forced into the main namespace so all packages use the same variable. This is why C<$_> works the way it works. So by introducing C<&_> in your package you introduce it in every package--not that I think that any other package defines C<&_>...
-
-Don't use this is serious code.
 
 
 =head1 EXAMPLE
@@ -244,28 +151,6 @@ This particular example isn't a closure as it doesn't reference any lexicals out
     } -> ($forefather);
 
 Hopefully this illustrates how this module allows you to write recursive algorithms inline like any other algorithm.
-
-
-=head1 DIAGNOSTICS
-
-=over
-
-=item Can't use &_ on unrecursive anonymous subroutine
-
-(F) Change C<sub> to C<recursive_> in the definition.
-
-=item &_ is already defined by someone else
-
-(W|S) You wanted this module to define C<&_> but it was already defined by someone else. C<&_> was redefined to be what you asked for.
-
-=back
-
-
-=head1 WARNING
-
-Using C<&_> is slow! REALLY REALLY SLOW!!! See misc/bench.pl in this distribution.
-
-Using C<&$REC> however is just as fast as not using this module and solving the problem manually. Don't get the habit of using C<recursive> instead of C<sub> though then C<sub> is enough as it imposes an overhead.
 
 
 =head1 AUTHOR
